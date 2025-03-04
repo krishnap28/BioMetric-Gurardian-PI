@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f4f7f6;
+            color: #333;
+            text-align: center;
+        }
+        h1, h2 {
+            font-weight: bold;
+        }
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: linear-gradient(90deg, #4CAF50, #2E7D32);
+            padding: 20px;
+            color: white;
+            font-size: 24px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .header h1 {
+            margin: 0;
+        }
+        .header p {
+            margin: 5px 0;
+        }
+        .info-cards {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 280px;
+            padding: 20px;
+            margin: 10px;
+            text-align: left;
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-10px);
+        }
+        .card h3 {
+            font-size: 18px;
+            color: #4CAF50;
+        }
+        .card p {
+            font-size: 16px;
+            margin: 10px 0;
+            color: #666;
+        }
+        .data-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .footer {
+            background: #333;
+            color: white;
+            padding: 20px;
+            margin-top: 40px;
+            text-align: center;
+            font-size: 14px;
+        }
+        @media (max-width: 768px) {
+            .info-cards {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+        .loading-spinner {
+            margin-top: 20px;
+            font-size: 30px;
+            color: #4CAF50;
+        }
+        .user-info {
+            background: #e8f5e9;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .user-info p {
+            font-size: 18px;
+            margin: 10px 0;
+            color: #333;
+        }
+        .user-info span {
+            font-weight: bold;
+            color: #2E7D32;
+        }
+    </style>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+            let timerInterval;
+
+function fetchData() {
+    $.ajax({
+        url: "/get_gps_data",
+        method: "GET",
+        success: function(data) {
+            if (data.gps) {
+                document.getElementById("latitude").innerText = "Latitude: " + data.gps.latitude;
+                document.getElementById("longitude").innerText = "Longitude: " + data.gps.longitude;
+            } else {
+                document.getElementById("latitude").innerText = "Latitude: N/A";
+                document.getElementById("longitude").innerText = "Longitude: N/A";
+            }
+            if (data.ecg) {
+                document.getElementById("heartRate").innerText = "Heart Rate: " + data.ecg.heart_rate;
+                document.getElementById("numPeaks").innerText = "Peaks: " + data.ecg.num_peaks;
+
+                // Check if heart_rate is null
+                if (data.ecg.heart_rate === null) {
+                    handleAbnormalECG(data.gps.latitude, data.gps.longitude, "{{ phone }}");
+                }
+            }
+        },
+        error: function() {
+            console.log("Error fetching data");
+        }
+    });
+}
+
+function handleAbnormalECG(latitude, longitude, phone) {
+    Swal.fire({
+        title: 'Your ECG reading is abnormal. Are you feeling okay?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Yes',
+        cancelButtonText: 'No',
+        timer: 20000,
+        timerProgressBar: true,
+        didOpen: () => {
+            Swal.showLoading();
+            timerInterval = setInterval(() => {
+                const content = Swal.getHtmlContainer();
+                if (content) {
+                    const b = content.querySelector('b');
+                    if (b) {
+                        b.textContent = Swal.getTimerLeft();
+                    }
+                }
+            }, 100);
+        },
+        willClose: () => {
+            clearInterval(timerInterval);
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            sendEmergencyData(latitude, longitude, phone);
+        } else if (result.dismiss === Swal.DismissReason.timer || result.isDenied) {
+            sendEmergencyData(latitude, longitude, phone);
+        }
+    });
+}
+
+function sendEmergencyData(latitude, longitude, phone) {
+    $.ajax({
+        url: "/send_to_pi",
+        method: "POST",
+        contentType: "application/json",
+        data: JSON.stringify({
+            latitude: latitude,
+            longitude: longitude,
+            phone_number: phone
+        }),
+        success: function(response) {
+            Swal.fire('Emergency data sent successfully!', '', 'success');
+        },
+        error: function() {
+            Swal.fire('Failed to send emergency data.', '', 'error');
+        }
+    });
+}
+
+setInterval(fetchData, 5000); // Fetch data every 5 seconds
+</script>
+    </script>
+
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Welcome, <span id="userName">{{ name }}</span></h1>
+        <p>Your Bio Data and GPS Location are shown below</p>
+    </div>
+
+    <div class="user-info">
+        <p>Phone: <span>{{ phone }}</span></p>
+        <p>Email: <span>{{ email }}</span></p>
+    </div>
+
+    <div class="info-cards">
+        <div class="card" id="gpsCard">
+            <h3><i class="fas fa-map-marker-alt"></i> GPS Location</h3>
+            <p id="latitude" class="data-value">Latitude: Loading...</p>
+            <p id="longitude" class="data-value">Longitude: Loading...</p>
+        </div>
+
+        <div class="card" id="ecgCard">
+            <h3><i class="fas fa-heartbeat"></i> ECG Data</h3>
+            <p id="heartRate" class="data-value">Heart Rate: Loading...</p>
+            <p id="numPeaks" class="data-value">Peaks: Loading...</p>
+        </div>
+    </div>
+
+    <div class="loading-spinner" id="spinner">
+        <i class="fas fa-spinner fa-spin"></i> Loading Data...
+    </div>
+</div>
+
+<div class="footer">
+    <p>&copy; 2024 Bio-Pi V 1.1</p>
+</div>
+
+</body>
+</html>

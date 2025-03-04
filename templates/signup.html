@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='main.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <div class="wrapper">
+        <div id="formContent">
+            <h2 class="active">Sign Up</h2>
+
+            <div class="fadeIn first">
+                <img src="{{ url_for('static', filename='user.png') }}" id="icon" alt="User Icon" />
+            </div>
+
+            <button onclick="enrollFingerprint()" class="fadeIn fourth" style="width: 50%; padding: 12px 20px; background-color: #18c86d; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; margin: 10px 0;">
+                Enroll Fingerprint
+            </button>
+
+            <button onclick="openCamera()" class="fadeIn fourth" style="width: 50%; padding: 12px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; font-size: 16px; cursor: pointer; margin: 10px 0;">
+                Capture Face
+            </button>
+
+            <form id="signupForm">
+                <input
+                    type="text"
+                    id="name"
+                    class="fadeIn second"
+                    name="name"
+                    placeholder="Full Name"
+                    pattern="[A-Za-z\s]{3,}"
+                    title="Please enter a valid name"
+                    required>
+               
+                <input
+                    type="email"
+                    id="login"
+                    class="fadeIn second"
+                    name="email"
+                    placeholder="Email Address"
+                    required>
+               
+                <input
+                    type="password"
+                    id="password"
+                    class="fadeIn third"
+                    name="pass"
+                    placeholder="Password"
+                    minlength="6"
+                    title="Password must be at least 6 characters long."
+                    required>
+
+                <input
+                    type="text"
+                    id="phone"
+                    class="fadeIn third"
+                    name="phone"
+                    placeholder="Phone Number"
+                    pattern="^\+?\d{10,15}$"
+                    title="Enter a valid phone number (e.g., +1234567890 or 1234567890)"
+                    required>
+                     
+                <input
+                    type="submit"
+                    id="signupButton"
+                    class="fadeIn fourth"
+                    value="Sign Up"
+                    disabled>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let isFingerprintEnrolled = false;
+
+        async function enrollFingerprint() {
+            try {
+                let response = await fetch('/fp_enroll', { method: 'POST' });
+                let result = await response.json();
+
+                if (result.status === 'success') {
+                    Swal.fire({
+                        title: 'Success!',
+                        text: `Fingerprint enrolled successfully! ID: ${result.id}`,
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    });
+                    isFingerprintEnrolled = true;
+                    document.getElementById("signupButton").disabled = false;
+                } else {
+                    Swal.fire({
+                        title: 'Error',
+                        text: result.message,
+                        icon: 'error',
+                        confirmButtonText: 'Try Again'
+                    });
+                }
+            } catch (error) {
+                Swal.fire({
+                    title: 'Error',
+                    text: "An error occurred during fingerprint enrollment. Please try again.",
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+                console.error("Error:", error);
+            }
+        }
+
+        function openCamera() {
+            const video = document.createElement('video');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const email = document.getElementById("login").value; // Get email value from the form
+
+            if (!email) {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Please enter an email before capturing face.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+                return;
+            }
+
+            Swal.fire({
+                title: 'Capture Face',
+                html: video,
+                showCancelButton: true,
+                confirmButtonText: 'Capture',
+                preConfirm: () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0);
+                    const imageData = canvas.toDataURL('image/jpeg');
+                    return imageData;
+                },
+                didOpen: () => {
+                    navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+                        video.srcObject = stream;
+                        video.play();
+                    }).catch((error) => {
+                        Swal.showValidationMessage(`Unable to access camera: ${error.message}`);
+                    });
+                },
+                willClose: () => {
+                    const stream = video.srcObject;
+                    const tracks = stream.getTracks();
+                    tracks.forEach((track) => track.stop());
+                }
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    const imageData = result.value;
+
+                    try {
+                        const response = await fetch('/capture_face', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ image: imageData, email: email }) // Include email in the payload
+                        });
+
+                        const resData = await response.json();
+                        if (resData.status === 'success') {
+                            Swal.fire({
+                                title: 'Success!',
+                                text: 'Face captured successfully!',
+                                icon: 'success',
+                                confirmButtonText: 'OK'
+                            });
+                        } else {
+                            Swal.fire({
+                                title: 'Error',
+                                text: resData.message,
+                                icon: 'error',
+                                confirmButtonText: 'Try Again'
+                            });
+                        }
+                    } catch (error) {
+                        Swal.fire({
+                            title: 'Error',
+                            text: 'Failed to capture face. Please try again.',
+                            icon: 'error',
+                            confirmButtonText: 'OK'
+                        });
+                        console.error("Error:", error);
+                    }
+                }
+            });
+        }
+
+        document.getElementById('signupForm').addEventListener('submit', async function (event) {
+            event.preventDefault(); // Prevent default form submission
+
+            if (!isFingerprintEnrolled) {
+                Swal.fire({
+                    title: 'Error',
+                    text: 'Please enroll your fingerprint before signing up.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+                return;
+            }
+
+            const formData = new FormData(this);
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // Check if response is OK and parse JSON
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const result = await response.json(); // Parse JSON
+
+                // Check for status and display appropriate SweetAlert
+                if (result.status === 'success') {
+                    Swal.fire({
+                        title: 'Registration Successful!',
+                        text: 'You have successfully registered. Please log in.',
+                        icon: 'success',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        // Redirect to the welcome page after success
+                        window.location.href = result.redirect_url; // Use the URL from the server response
+                    });
+                } else {
+                    // Show error message if registration fails
+                    Swal.fire({
+                        title: 'Error',
+                        text: result.message || 'An unknown error occurred.',
+                        icon: 'error',
+                        confirmButtonText: 'Try Again'
+                    });
+                }
+            } catch (error) {
+                // Catch any errors that occur in the fetch request or JSON parsing
+                console.error('Error:', error);
+                Swal.fire({
+                    title: 'Error',
+                    text: error.message || 'An error occurred during the registration process. Please try again.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
+                });
+            }
+        });
+    </script>
+</body>
+</html>

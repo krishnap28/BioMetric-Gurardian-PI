@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bio-Pi</title>
+    <!-- Link to SweetAlert2 CSS and JS -->
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Include Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename = 'main.css') }}">
+    <style>
+        /* Full-screen loader style */
+        .page-loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .page-loader .loader {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Style for the button icons */
+        .icon-button {
+            font-size: 36px; /* Larger size for better visibility */
+            color: #007bff; /* Blue color */
+            background-color: transparent; /* No background */
+            border: none; /* No border */
+            padding: 12px; /* Adjust padding for better icon size */
+            cursor: pointer;
+            transition: none; /* No transition effect */
+        }
+
+        /* Icon container for better layout */
+        .icon-container {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+
+        .icon-container button {
+            width: 48%; /* Buttons take up 48% width of container */
+        }
+
+        input[type="email"]:focus, input[type="password"]:focus {
+            border-color: #6a11cb;
+            background-color: #f0f4ff;
+            box-shadow: 0 0 5px rgba(106, 17, 203, 0.3);
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="wrapper fadeInDown">
+    <div id="formContent">
+        <!-- Tabs Titles -->
+        <h2 class="active"> Sign In </h2>
+        <a href="http://127.0.0.1:5000/signup"><h2 class="inactive underlineHover">Sign Up </h2></a>
+        
+        <div class="fadeIn first">
+            <img src="{{ url_for('static', filename = 'user.png') }}" id="icon" alt="User Icon" />
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm" action="/result" method="POST">
+            <input type="email" id="login" class="fadeIn second" name="email" placeholder="Email" 
+                   style="width: 100%; padding: 14px 16px; margin: 12px 0; border: 1px solid #ddd; 
+                          border-radius: 8px; font-size: 16px; background-color: #f9f9f9; 
+                          box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1); transition: all 0.3s ease;">
+            <input type="password" id="password" class="fadeIn third" name="pass" placeholder="Password" 
+                   style="width: 100%; padding: 14px 16px; margin: 12px 0; border: 1px solid #ddd; 
+                          border-radius: 8px; font-size: 16px; background-color: #f9f9f9; 
+                          box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1); transition: all 0.3s ease;">
+            
+            <input type="submit" class="fadeIn fourth" value="Log In" 
+                   style="width: 50%; padding: 12px 20px; background-color: #18c86d; color: white; 
+                          border: none; border-radius: 5px; font-size: 16px; cursor: pointer; margin: 10px 0;">
+        </form>
+
+        <div class="icon-container">
+            <button onclick="validateFingerprint()" class="icon-button">
+                <i class="fas fa-fingerprint"></i> 
+            </button>
+            <button onclick="validateFace()" class="icon-button">
+                <i class="fas fa-camera"></i> 
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Full-screen loader -->
+<div id="page-loader" class="page-loader">
+    <div class="loader"></div>
+</div>
+
+<script>
+    // Show loader when submitting form
+    function showLoader(event) {
+        event.preventDefault(); 
+        const loader = document.getElementById('page-loader');
+        loader.style.display = 'flex'; 
+
+        setTimeout(() => {
+            event.target.submit(); 
+        }, 500); 
+    }
+
+    async function handleLoginResponse(response) {
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            window.location.href = result.redirect_url;  // Redirect to welcome page
+        } else if (result.status === 'error') {
+            // Error: show error popup
+            Swal.fire({
+                title: 'Login Failed!',
+                text: result.message,  // Error message from the backend
+                icon: 'error',
+                confirmButtonText: 'Try Again'
+            }).then(() => {
+                window.location.href = "/";  // Redirect back to login page
+            });
+        }
+    }
+
+    document.getElementById("loginForm").addEventListener("submit", async function(event) {
+        event.preventDefault(); // Prevent default form submission
+
+        const formData = new FormData(this);
+        const response = await fetch('/result', {
+            method: 'POST',
+            body: formData
+        });
+
+        handleLoginResponse(response);
+    });
+
+    
+
+    async function validateFingerprint() {
+        try {
+            let response = await fetch('/fp_validate', { method: 'POST' });
+            let result = await response.json();
+
+            if (result.status === 'success') {
+                Swal.fire({
+                    title: 'Success!',
+                    text: `Fingerprint validated successfully!`,
+                    icon: 'success',
+                    confirmButtonText: 'OK'
+                });
+            } else {
+                Swal.fire({
+                    title: 'Error',
+                    text: result.message,
+                    icon: 'error',
+                    confirmButtonText: 'Try Again'
+                });
+            }
+        } catch (error) {
+            Swal.fire({
+                title: 'Error',
+                text: "An error occurred during fingerprint validation. Please try again.",
+                icon: 'error',
+                confirmButtonText: 'OK'
+            });
+            console.error("Error:", error);
+        }
+    }
+
+//     function openCamera() {
+// const video = document.createElement('video');
+// const canvas = document.createElement('canvas');
+// const ctx = canvas.getContext('2d');
+// const email = document.getElementById("login").value; // Get email value from the form
+
+// if (!email) {
+//       Swal.fire({
+//       title: 'Error',
+// text: 'Please enter an email before capturing face.',
+// icon: 'error',
+// confirmButtonText: 'OK'
+// });
+// return;
+// }
+
+// Swal.fire({
+// title: 'Capture Face',
+// html: video,
+// showCancelButton: true,
+// confirmButtonText: 'Capture',
+// preConfirm: () => {
+// canvas.width = video.videoWidth;
+// canvas.height = video.videoHeight;
+// ctx.drawImage(video, 0, 0);
+// const imageData = canvas.toDataURL('image/jpeg');
+// return imageData;
+// },
+// didOpen: () => {
+// navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+//     video.srcObject = stream;
+//     video.play();
+// }).catch((error) => {
+//     Swal.showValidationMessage(`Unable to access camera: ${error.message}`);
+// });
+// },
+// willClose: () => {
+// const stream = video.srcObject;
+// const tracks = stream.getTracks();
+// tracks.forEach((track) => track.stop());
+// }
+// }).then(async (result) => {
+// if (result.isConfirmed) {
+// const imageData = result.value;
+
+// try {
+//     const response = await fetch('/capture_face', {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify({ image: imageData, email: email }) // Include email in the payload
+//     });
+
+//     const resData = await response.json();
+//     if (resData.status === 'success') {
+//         Swal.fire({
+//             title: 'Success!',
+//             text: 'Face captured successfully!',
+//             icon: 'success',
+//             confirmButtonText: 'OK'
+//         });
+//     } else {
+//         Swal.fire({
+//             title: 'Error',
+//             text: resData.message,
+//             icon: 'error',
+//             confirmButtonText: 'Try Again'
+//         });
+//     }
+// } catch (error) {
+//     Swal.fire({
+//         title: 'Error',
+//         text: 'Failed to capture face. Please try again.',
+//         icon: 'error',
+//         confirmButtonText: 'OK'
+//     });
+//     console.error("Error:", error);
+// }
+// }
+// });
+// }
+</script>
+
+</body>
+</html>
